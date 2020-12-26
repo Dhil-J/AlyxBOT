@@ -1,5 +1,5 @@
 <p align="center">
-<img src="https://i.pinimg.com/originals/e1/d0/a5/e1d0a5fa0b25f13d0f7c0ee4b6d85096.gif" alt="GIF" width="128" height="128"/>
+<img src="https://i.pinimg.com/originals/e1/d0/a5/e1d0a5fa0b25f13d0f7c0ee4b6d85096.gif" alt="GIF" width="155" height="150"/>
 </p>
 <p align="center">
 <a href="#"><img title="ALYX BOT" src="https://img.shields.io/badge/ALYX%20BOT-green?colorA=%23ff0000&colorB=%23017e40&style=for-the-badge"></a>
