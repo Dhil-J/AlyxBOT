@@ -21,7 +21,6 @@ const imageToBase64 = require('image-to-base64')
 const bent = require('bent')
 const request = require('request')
 const emojiUnicode = require('emoji-unicode')
-const canvas = require('canvacord')
 
 //const { getStickerMaker } = require('./lib/ttp')
 //const quotedd = require('./lib/quote')
@@ -1286,42 +1285,7 @@ module.exports = dhil = async (dhil, message) => {
                                         await dhil.reply(from, 'Emoji itu tidak di dukung!', id)
                                     })
                             break
-                            case 'triggered':
-                                if(isReg(obj)) return
-                                if(cekumur(cekage)) return
-                                if(isLimit(serial)) return
-                                try {
-                                    if (isMedia && isImage) {
-                                        const ppRaw = await decryptMedia(message, uaOverride)
-                                        canvas.Canvas.trigger(ppRaw)
-                                            .then(async (buffer) => {
-                                                canvas.write(buffer, `${sender.id}_triggered.png`)
-                                                await dhil.sendFile(from, `${sender.id}_triggered.png`, `${sender.id}_triggered.png`, '', id)
-                                                fs.unlinkSync(`${sender.id}_triggered.png`)
-                                            })
-                                    } else if (quotedMsg) {
-                                        const ppRaw = await dhil.getProfilePicFromServer(quotedMsgObj.sender.id)
-                                        canvas.Canvas.trigger(ppRaw)
-                                            .then(async (buffer) => {
-                                                canvas.write(buffer, `${sender.id}_triggered.png`)
-                                                await dhil.sendFile(from, `${sender.id}_triggered.png`, `${sender.id}_triggered.png`, '', id)
-                                                fs.unlinkSync(`${sender.id}_triggered.png`)
-                                            })
-                                    } else {
-                                        const ppRaw = await dhil.getProfilePicFromServer(sender.id)
-                                        canvas.Canvas.trigger(ppRaw)
-                                            .then(async (buffer) => {
-                                                canvas.write(buffer, `${sender.id}_triggered.png`)
-                                                await dhil.sendFile(from, `${sender.id}_triggered.png`, `${sender.id}_triggered.png`, '', id)
-                                                fs.unlinkSync(`${sender.id}_triggered.png`)
-                                                limitAdd(serial)
-                                            })
-                                    }
-                                } catch (err) {
-                                    console.error(err)
-                                    await dhil.reply(from, `Error!\n${err}`, id)
-                                }
-                            break
+                  
 						
 
 
