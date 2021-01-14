@@ -52,27 +52,28 @@ const start = async (dhil = new Client()) => {
         dhil.getAmountOfLoadedMessages() // Cut message Cache if cache more than 3K
             .then((msg) => {
                 if (msg >= 1000) {
-                    console.log('[CLIENT]', color(`Loaded Message Reach ${msg}, cuting message cache...`, 'yellow'))
+                    console.log('[CLIENT]', color(`Loaded Message Reach ${msg}, cuting message cache...`, 'orange'))
                     dhil.cutMsgCache()
                 }
             })
-        // msgHndlr(dhil, message)
+        // msgHndlr(tobz, message)
         // Message Handler (Loaded from recent cache)
         require('./dhil.js')(dhil, message)
     }))
+           
 
-			 //dhil.onGlobalParicipantsChanged((async (heuh) => {
-            //await welcome(dhil, heuh) 
-            //left(dhil, heuh)
-            //}))
+        //dhil.onGlobalParicipantsChanged((async (jir) => {
+          //  await welcome(dhil, jir) 
+            //left(dhil, jir)
+           // }))
         
-         dhil.onAddedToGroup(async (chat) => {
-            if(isWhite(chat.id)) return dhil.sendText(chat.id, 'Halo, Ketik !help Untuk Melihat List Command Ku...')
+        dhil.onAddedToGroup(async (chat) => {
+            if(isWhite(chat.id)) return dhil.sendText(chat.id, 'Halo, Ketik !help Untuk Melihat List Command saya...')
             if(mtcState === false){
                 const groups = await dhil.getAllGroups()
                 // BOT group count less than
                 if(groups.length > groupLimit){
-                    await dhil.sendText(chat.id, 'Maaf, Batas group yang dapat ku tampung sudah penuh').then(async () =>{
+                    await dhil.sendText(chat.id, 'Maaf, Batas group yang dapat saya tampung sudah penuh').then(async () =>{
                         dhil.deleteChat(chat.id)
                         dhil.leaveGroup(chat.id)
                     })
@@ -83,7 +84,7 @@ const start = async (dhil = new Client()) => {
                             dhil.leaveGroup(chat.id)
                         })
                     }else{
-                        if(!chat.isReadOnly) dhil.sendText(chat.id, 'Halo, Ketik !help Untuk Melihat List Command Ku...')
+                        if(!chat.isReadOnly) dhil.sendText(chat.id, 'Halo, Ketik !help Untuk Melihat List Command saya...')
                     }
                 }
             }else{
@@ -135,5 +136,5 @@ function uncache(module = '.') {
 }
 
 create(options(true, start))
-    .then(dhil => start(dhil))
+    .then(tobz => start(tobz))
     .catch((error) => console.log(error))
