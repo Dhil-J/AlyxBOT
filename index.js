@@ -9,6 +9,8 @@ const fs = require('fs')
 const figlet = require('figlet')
 const lolcatjs = require('lolcatjs')
 const options = require('./options')
+const premiNumber = JSON.parse(fs.readFileSync('./lib/database/user/premium.json'))
+const isWhite = (chatId) => premiNumber.includes(chatId) ? true : false
 
 
 // AUTO UPDATE BY NURUTOMO
@@ -17,17 +19,17 @@ const options = require('./options')
 require('./dhil.js')
 nocache('./dhil.js', module => console.log(`'${module}' Updated!`))
 
-const setting = JSON.parse(fs.readFileSync('./lib/database/settings.json'))
+const { groupLimit, memberLimit } = require('./lib/database/settings.json')
 //const isWhite = (chatId) => adminNumber.includes(chatId) ? true : false
 
-let { 
+/*let { 
     limitCount,
     memberLimit, 
     groupLimit,
     mtc: mtcState,
     banChats,
     restartState: isRestart
-    } = setting
+    } = setting*/
 
 
 
@@ -67,33 +69,22 @@ const start = async (dhil = new Client()) => {
             //left(dhil, jir)
            // }))
         
-        dhil.onAddedToGroup(async (chat) => {
-            if(isWhite(chat.id)) return dhil.sendText(chat.id, 'Halo, Ketik !help Untuk Melihat List Command saya...')
-            if(mtcState === false){
-                const groups = await dhil.getAllGroups()
-                // BOT group count less than
-                if(groups.length > groupLimit){
-                    await dhil.sendText(chat.id, 'Maaf, Batas group yang dapat saya tampung sudah penuh').then(async () =>{
-                        dhil.deleteChat(chat.id)
-                        dhil.leaveGroup(chat.id)
-                    })
-                }else{
-                    if(chat.groupMetadata.participants.length < memberLimit){
-                        await dhil.sendText(chat.id, `Maaf, BOT keluar jika member group tidak melebihi ${memberLimit} orang`).then(async () =>{
-                            dhil.deleteChat(chat.id)
-                            dhil.leaveGroup(chat.id)
-                        })
-                    }else{
-                        if(!chat.isReadOnly) dhil.sendText(chat.id, 'Halo, Ketik !help Untuk Melihat List Command saya...')
-                    }
+		// Listening added to group
+	const gc = await dhil.getAllGroups()
+	dhil.onAddedToGroup(({ groupMetadata: { id }, contact: { name } }) =>
+        dhil.getGroupMembersId(id)
+            .then((ids) => {
+                console.log('[CLIENT]', color(`Invited to Group. [ ${name} => ${ids.length}]`, 'blue'))
+                // Bot akan keluar jika member group nya kurang
+                if (ids.length <= memberLimit) {
+                    dhil.sendText(id, `Maaf, BOT akan keluar karena member grup ini kurang dari ${memberLimit} user. Bye~`).then(() => dhil.leaveGroup(id))
+                } else if (gc.length > groupLimit) {
+					dhil.sendText(id, `Maaf, Grup yang saya tampung sudah penuh!`).then(() => dhil.leaveGroup(id))
+				} else {
+                    dhil.sendText(id, `Halo Member grup *${name}*, terima kasih sudang mengundang saya, untuk menggunakan bot, silahkan ketik *!help*`)
                 }
-            }else{
-                await dhil.sendText(chat.id, 'BOT sedang maintenance, coba lain hari').then(async () => {
-                    dhil.deleteChat(chat.id)
-                    dhil.leaveGroup(chat.id)
-                })
-            }
-        })
+            }))
+
 
         /*dhil.onAck((x => {
             const { from, to, ack } = x
