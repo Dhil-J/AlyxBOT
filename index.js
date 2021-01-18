@@ -1,16 +1,15 @@
 // import { create, Client } from '@open-wa/wa-automate';
 const { create, Client } = require('@open-wa/wa-automate')
-//const welcome = require('./lib/welcome')
-//const left = require('./lib/left')
+const welcome = require('./lib/welcome')
+const left = require('./lib/left')
 const cron = require('node-cron')
 const color = require('./lib/color')
 const fs = require('fs')
-// const msgHndlr = require ('./dhil')
 const figlet = require('figlet')
 const lolcatjs = require('lolcatjs')
 const options = require('./options')
 const premiNumber = JSON.parse(fs.readFileSync('./lib/database/user/premium.json'))
-const isWhite = (chatId) => premiNumber.includes(chatId) ? true : false
+//const isWhite = (chatId) => premiNumber.includes(chatId) ? true : false
 
 
 // AUTO UPDATE BY NURUTOMO
@@ -20,7 +19,7 @@ require('./dhil.js')
 nocache('./dhil.js', module => console.log(`'${module}' Updated!`))
 
 const { groupLimit, memberLimit } = require('./lib/database/settings.json')
-//const isWhite = (chatId) => adminNumber.includes(chatId) ? true : false
+//const isWhite = (chatId) => premiNumber.includes(chatId) ? true : false
 
 /*let { 
     limitCount,
@@ -64,10 +63,10 @@ const start = async (dhil = new Client()) => {
     }))
            
 
-        //dhil.onGlobalParicipantsChanged((async (jir) => {
-          //  await welcome(dhil, jir) 
-            //left(dhil, jir)
-           // }))
+    dhil.onGlobalParicipantsChanged((async (jir) => {
+        await welcome(dhil, jir) 
+        left(dhil, jir)
+        }))
         
 		// Listening added to group
 	const gc = await dhil.getAllGroups()
