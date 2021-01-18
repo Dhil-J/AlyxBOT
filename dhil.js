@@ -1,3 +1,4 @@
+/********** MODULES **********/
 require('dotenv').config()
 const { decryptMedia } = require('@open-wa/wa-decrypt')
 const fs = require('fs-extra')
@@ -9,7 +10,7 @@ const os = require('os')
 const get = require('got')
 const speed = require('performance-now')
 const fetch = require('node-fetch')
-const { spawn, exec } = require('child_process')
+const { spawn, exec } = require('child')
 const nhentai = require('nhentai-js')
 const { API } = require('nhentai-api')
 const google = require('google-it')
@@ -21,13 +22,27 @@ const imageToBase64 = require('image-to-base64')
 const bent = require('bent')
 const request = require('request')
 const emojiUnicode = require('emoji-unicode')
+const toMs = require('ms')
+const ms = require('parse-ms')
+const canvas = require('canvacord')
+/********** END OF MODULES **********/
+
+
+/********** UTILS **********/
+const afk = require('./functions/afk')
+const premium = require('./functions/premium')
+const level = require('./functions/level')
+const card = require('./functions/card')
+const reminder = require('./functions/reminder')
+
+
 
 //const { getStickerMaker } = require('./lib/ttp')
 //const quotedd = require('./lib/quote')
 const color = require('./lib/color')
 const urlShortener = require('./lib/shortener')
 const { addFilter, isFiltered } = require('./lib/msgFilter')
-const cariKasar = require('./lib/toxic')
+const cariKasar = require('./lib/kataKotor')
 
 const { 
     downloader,
@@ -73,39 +88,48 @@ const {
     joox
     } = require('./lib/downloader')*/
 
-const {
-    stickerLight,
-    stickerFire
-    } = require('./lib/sticker')
+    const {
+        stickerburn,
+        stickerlight
+        } = require('./lib/sticker')
 
 const { 
     uploadImages, 
     custom
     } = require('./lib/fetcher')
 
-// LOAD FILE | Database
+/********** DATABASES **********/
 let banned = JSON.parse(fs.readFileSync('./lib/database/user/banned.json'))
-let nsfw_ = JSON.parse(fs.readFileSync('./lib/database/nsfw.json'))
-let simi_ = JSON.parse(fs.readFileSync('./lib/database/simisimi.json'))
-let limit = JSON.parse(fs.readFileSync('./lib/database/limit.json'))
-let welkom = JSON.parse(fs.readFileSync('./lib/database/welcome.json'))
-let left = JSON.parse(fs.readFileSync('./lib/database/left.json'))
-let muted = JSON.parse(fs.readFileSync('./lib/database/muted.json'))
+let nsfw_ = JSON.parse(fs.readFileSync('./lib/database/group/nsfw.json'))
+let simi_ = JSON.parse(fs.readFileSync('./lib/database/group/simisimi.json'))
+let limit = JSON.parse(fs.readFileSync('./lib/database/user/limit.json'))
+let welkom = JSON.parse(fs.readFileSync('./lib/database/group/welcome.json'))
+let left = JSON.parse(fs.readFileSync('./lib/database/group/left.json'))
+let muted = JSON.parse(fs.readFileSync('./lib/database/group/muted.json'))
 let setting = JSON.parse(fs.readFileSync('./lib/database/settings.json'))
-let msgLimit = JSON.parse(fs.readFileSync('./lib/database/msgLimit.json'))
+let msgLimit = JSON.parse(fs.readFileSync('./lib/database/group/msgLimit.json'))
 let premiNumber = JSON.parse(fs.readFileSync('./lib/database/user/premium.json'))
 const _afk = JSON.parse(fs.readFileSync('./lib/database/user/afk.json'))
-// END 
+const _level = JSON.parse(fs.readFileSync('./lib/database/user/level.json'))
+const _leveling = JSON.parse(fs.readFileSync('./lib/database/group/leveling.json'))
+const _bg = JSON.parse(fs.readFileSync('./lib/database/user/card/background.json'))
+const _reminder = JSON.parse(fs.readFileSync('./lib/database/user/reminder.json'))
+let db_badword = JSON.parse(fs.readFileSync('./lib/database/katakasar.json'))
 
-// PROTECT
-let antilink = JSON.parse(fs.readFileSync('./lib/database/antilink.json'))
-let antibadword = JSON.parse(fs.readFileSync('./lib/database/antibadword.json'))
-let antisticker = JSON.parse(fs.readFileSync('./lib/database/antisticker.json'))
-let msgBadword = JSON.parse(fs.readFileSync('./lib/database/msgBadword.json'))
-let dbbadword = JSON.parse(fs.readFileSync('./lib/database/katakasar.json'))
-let badword = JSON.parse(fs.readFileSync('./lib/database/user/badword.json'))
+/********** END OF DATABASES **********/ 
+
+/********** DATABASES | PROTECT  **********/
+let antilink = JSON.parse(fs.readFileSync('./lib/database/group/antilink.json'))
+let msgBadword = JSON.parse(fs.readFileSync('./lib/database/user/msgBadword.json'))
+let antisticker = JSON.parse(fs.readFileSync('./lib/database/group/antisticker.json'))
+let badword = JSON.parse(fs.readFileSync('./lib/database/group/badword.json'))
 let user = JSON.parse(fs.readFileSync('./lib/database/user/reguser.json'))
-let stickerspam = JSON.parse(fs.readFileSync('./lib/database/stickerspam.json'))
+let stickerspam = JSON.parse(fs.readFileSync('./lib/database/user/stickerspam.json'))
+/********** END OF DATABASES | PROTECT  **********/
+
+// Automate
+premium.expiredCheck(premiNumber)
+
 
 let { 
     limitCount,
@@ -136,20 +160,25 @@ const prefix = ','
 var timeStart = Date.now() / 1000
 moment.tz.setDefault('Asia/Jakarta').locale('id')
 
+/********* MSG HNDLR ********/
 module.exports = dhil = async (dhil, message) => {
     try {
-        const { type, id, from, t, sender, isGroupMsg, chat, chatId, caption, isMedia, mimetype, quotedMsg, quotedMsgObj, author, mentionedJidList } = message
+        const { type, id, from, t, sender, isGroupMsg, chatId, chat, caption, isMedia, mimetype, quotedMsg, quotedMsgObj, mentionedJidList } = message
         let { body } = message
+        const serial = sender.id
         const { name, formattedTitle } = chat
         let { pushname, verifiedName } = sender
         pushname = pushname || verifiedName
         const commands = caption || body || ''
         const chats = (type === 'chat') ? body : (type === 'image' || type === 'video') ? caption : ''
+        body = (type === 'chat' && body.startsWith(prefix)) ? body : (((type === 'image' || type === 'video') && caption) && caption.startsWith(prefix)) ? caption : ''
+        
         const argx = commands.toLowerCase()
         const args =  commands.split(' ')
         const command = commands.toLowerCase().split(' ')[0] || ''
 		
-		
+        const argz = body.trim().split(/ +/).slice(1)
+        const ar = argz.map((v) => v.toLowerCase())
 
         global.prefix
         
@@ -162,74 +191,135 @@ module.exports = dhil = async (dhil, message) => {
         const isBotGroupAdmins = isGroupMsg ? groupAdmins.includes(botNumber + '@c.us') : false
         const SN = GenerateSerialNumber("000000000000000000000000")
 
-        const isBanned = banned.includes(sender.id)
-        const isBlocked = blockNumber.includes(sender.id)
-        const isNsfw = isGroupMsg ? nsfw_.includes(chat.id) : false
-        const isSimi = isGroupMsg ? simi_.includes(chat.id) : false
+        
         const uaOverride = 'WhatsApp/2.2029.4 Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36'
         const isUrl = new RegExp(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)/gi)
         const url = args.length !== 0 ? args[0] : ''
 
+        /******* VALIDATOR  *******/
+        const isBanned = banned.includes(sender.id)
+        const isBlocked = blockNumber.includes(sender.id)
+        const isNsfw = isGroupMsg ? nsfw_.includes(chat.id) : false
+        const isSimi = isGroupMsg ? simi_.includes(chat.id) : false
         const isQuotedImage = quotedMsg && quotedMsg.type === 'image'
         const isQuotedVideo = quotedMsg && quotedMsg.type === 'video'
         const isQuotedAudio = quotedMsg && (quotedMsg.type === 'audio' || quotedMsg.type === 'ptt' || quotedMsg.type === 'ppt')
         const isQuotedFile = quotedMsg && quotedMsg.type === 'document'
         const isQuotedGif = quotedMsg && quotedMsg.mimetype === 'image/gif'
+        const isQuotedSticker = quotedMsg && quotedMsg.type === 'sticker'
         const isImage = type === 'image'
 
-        const isBadword = badword.includes(chatId)
-        body = (type === 'chat' && body.startsWith(prefix)) ? body : (((type === 'image' || type === 'video') && caption) && caption.startsWith(prefix)) ? caption : ''
+    
         const arg = body.substring(body.indexOf(' ') + 1)
-        const isKasar = await cariKasar(chats)
-        const GroupLinkDetector = antilink.includes(chatId)
+  
+
+       
+        const isDetectorLink = antilink.includes(chatId)
         const AntiStickerSpam = antisticker.includes(chatId)
+        const isBadword = badword.includes(chatId)
         const isPrivate = sender.id === chat.contact.id
         const stickermsg = message.type === 'sticker'
         const isCmd = command.startsWith(prefix)
+
+        const ownerNumber = '62821****@c.us'
+        const isOwner = ownerNumber.includes(sender.id)
+        const isAfkOn = afk.checkAfkUser(sender.id, _afk)
+        const isPremi = premium.checkPremiumUser(sender.id, premiNumber)
+        const isLevelingOn = isGroupMsg ? _leveling.includes(groupId) : false
+        
+
+        const isKasar = await cariKasar(chats)
+        /******* END OF VALIDATOR  *******/
         
         const tms = (Date.now() / 1000) - (timeStart);
         const cts = waktu(tms)
 
-        const serial = sender.id
-        const isPremi = premiNumber.includes(sender.id)
-        const ownerNumber = '628979870204@c.us'
-        const isOwner = ownerNumber.includes(sender.id)
+
         
-		
-		
-        const argz = body.trim().split(/ +/).slice(1)
+        
 
-        if (isGroupMsg && GroupLinkDetector && !isGroupAdmins && !isOwner){
-            if (chats.match(/(https:\/\/chat.whatsapp.com)/gi)) {
-                const check = await dhil.inviteInfo(chats);
-                if (!check) {
-                    return
-                } else {
-                    dhil.reply(from, `*「 GROUP LINK DETECTOR 」*\nKamu mengirimkan link grup chat, maaf kamu di kick dari grup :(`, id).then(() => {
-                        dhil.removeParticipant(groupId, sender.id)
-                    })
+                // ROLE (Change to what you want, or add) and You can change the role sort based on XP
+                const levelRole = level.getLevelingLevel(sender.id, _level)
+                var role = 'Culun V'
+                if (levelRole <= 5) {
+                    var role = 'Culun IV'
+                } else if (levelRole <= 10) {
+                    var role = 'Culun III'
+                } else if (levelRole <= 15) {
+                    var role = 'Culun II'
+                } else if (levelRole <= 20) {
+                    var role = 'Culun I'
+                } else if (levelRole <= 25) {
+                    var role = 'Amatir V'
+                } else if (levelRole <= 30) {
+                    var role = 'Amatir IV'
+                } else if (levelRole <= 35) {
+                    var role = 'Amatir III'
+                } else if (levelRole <= 40) {
+                    var role = 'Amatir II'
+                } else if (levelRole <= 45) {
+                    var role = 'Amatir I'
+                } else if (levelRole <= 50) {
+                    var role = 'Pro V'
+                } else if (levelRole <= 55) {
+                    var role = 'Pro IV'
+                } else if (levelRole <= 60) {
+                    var role = 'Pro III'
+                } else if (levelRole <= 65) {
+                    var role = 'Pro II'
+                } else if (levelRole <= 70) {
+                    var role = 'Pro I'
+                } else if (levelRole <= 75) {
+                    var role = 'Legend V'
+                } else if (levelRole <= 80) {
+                    var role = 'Legend IV'
+                } else if (levelRole <= 85) {
+                    var role = 'Legend III'
+                } else if (levelRole <= 90) {
+                    var role = 'Legend II'
+                } else if (levelRole <= 95) {
+                    var role = 'Legend I'
+                } else if (levelRole <= 100) {
+                    var role = 'Myth'
                 }
-            }
-        }
+        
+                // Leveling [BETA] by Slavyan | BIG THANKS TO HIM
+                if (isGroupMsg && isReg && !isBanned && isLevelingOn) {
+                    const currentLevel = level.getLevelingLevel(sender.id, _level)
+                    const checkId = level.getLevelingId(sender.id, _level)
+                    const checkBg = card.getBg(sender.id, _bg)
+                    try {
+                        if (currentLevel === undefined && checkId === undefined) level.addLevelingId(sender.id, _level)
+                        if (checkBg === undefined) card.addBg(sender.id, _bg)
+                        const amountXp = Math.floor(Math.random() * 10) + 150
+                        const requiredXp = 200 * (Math.pow(2, currentLevel) - 1)
+                        const getLevel = level.getLevelingLevel(sender.id, _level)
+                        level.addLevelingXp(sender.id, amountXp, _level)
+                        if (requiredXp <= level.getLevelingXp(sender.id, _level)) {
+                            level.addLevelingLevel(sender.id, 1, _level)
+                            const fetchXp = 200 * (Math.pow(2, level.getLevelingLevel(sender.id, _level)) - 1)
+                            await dhil.reply(from, `*「 LEVEL UP 」*\n\n➸ *Name*: ${pushname}\n➸ *XP*: ${level.getLevelingXp(sender.id, _level)} / ${fetchXp}\n➸ *Level*: ${getLevel} -> ${level.getLevelingLevel(sender.id, _level)} 🆙 \n➸ *Role*: *${role}*\n\nCongrats!! 🎉🎉`, id)
+                        }
+                    } catch (err) {
+                        console.error(err)
+                    }
+                }
+                if(chats.match("curhat")){
+                    dhil.reply(from, 'Bot gabisa diajak curhat ya dik! Karna bot bukan manusia :)', id)
+                }
+		
+        
 
-        if (isGroupMsg && AntiStickerSpam && !isGroupAdmins && !isOwner){
-            if(stickermsg === true){
-                if(isStickerMsg(serial)) return
-                addStickerCount(serial)
-            }
-        }
+       
 
-        if(!isCmd && isKasar && isGroupMsg && isBadword && !isGroupAdmins) { 
-            console.log(color('[BADWORD]', 'red'), color(moment(t * 1000).format('DD/MM/YY HH:mm:ss'), 'yellow'), color(`${argx}`), 'from', color(pushname), 'in', color(name || formattedTitle)) 
-            if(isBadwordMsg(serial)) return
-                addBadCount(serial)
-        }
+        
         
         // [BETA] Avoid Spam Message
         //if (isCmd && isFiltered(from) && !isGroupMsg) { return console.log(color('[SPAM]', 'red'), color(moment(t * 1000).format('DD/MM/YY HH:mm:ss'), 'yellow'), color(`${command} [${args.length}]`), 'from', color(pushname)) }
         //if (isCmd && isFiltered(from) && isGroupMsg) { return console.log(color('[SPAM]', 'red'), color(moment(t * 1000).format('DD/MM/YY HH:mm:ss'), 'yellow'), color(`${command} [${args.length}]`), 'from', color(pushname), 'in', color(name || formattedTitle)) }
         // AKTIFKAN APABILA TIDAK INGIN TERKENA SPAM!!
-        //addFilter(from)
+    
+        
         if (isCmd && !isGroupMsg) {console.log(color('[EXEC]'), color(moment(t * 1000).format('DD/MM/YY HH:mm:ss'), 'yellow'), color(`${command} [${args.length}]`), 'from', color(pushname))}
         if (isCmd && isGroupMsg) {console.log(color('[EXEC]'), color(moment(t * 1000).format('DD/MM/YY HH:mm:ss'), 'yellow'), color(`${command} [${args.length}]`), 'from', color(pushname), 'in', color(name || formattedTitle))}
 
@@ -293,9 +383,31 @@ module.exports = dhil = async (dhil, message) => {
             if (obj === true){
                 return false
             } else {
-                return dhil.reply(from, `Kamu belum cukup umur untuk menggunakan Elaina, min 16 tahun\n\nKamu bisa mendaftar ulang dengan cara donasi terlebih dahulu, bales ${prefix}donasi\nHubungi Owner : wa.me/6281311850715`, id) //if user is not registered
+                return dhil.reply(from, `Kamu belum cukup umur untuk menggunakan BOT ini, min 16 tahun\n\nKamu bisa mendaftar ulang dengan cara donasi terlebih dahulu, bales ${prefix}donasi\nHubungi Owner : wa.me/6281311850715`, id) //if user is not registered
             }
         }
+
+        // AFK by Slavyan
+        const jirafk = JSON.parse(fs.readFileSync('./lib/database/user/afk.json'))
+        if (isGroupMsg) {
+            for (let ment of mentionedJidList) {
+                for(let af of jirafk){
+                    if(af.id === ment){
+                if (afk.checkAfkUser(ment, _afk)) {
+                    const getId = afk.getAfkId(ment, _afk)
+                    const getReason = afk.getAfkReason(getId, _afk)
+                    const getTime = afk.getAfkTime(getId, _afk)
+                    await dhil.sendTextWithMentions(from, `🔴 @${af.id.replace(/[@c.us]/g, '')} Sedang AFK!!\n *├ Alasan :* ${getReason}\n *├ Waktu :* ${getTime}`, id)
+                }
+            }
+        }}
+            if (afk.checkAfkUser(sender.id, _afk) && !isCmd) {
+                _afk.splice(afk.getAfkPosition(sender.id, _afk), 1)
+                fs.writeFileSync('./lib/database/user/afk.json', JSON.stringify(_afk))
+                await dhil.sendTextWithMentions(from, `✅ @${sender.id.replace(/[@c.us]/g, '')} _Sudah tidak AFK!_`, id)
+            }
+        
+    }
 
         const apakah = [
             'Ya',
@@ -384,36 +496,49 @@ module.exports = dhil = async (dhil, message) => {
         }
         
         // FUNCTION
-                function isStickerMsg(id){
-                if (isPremi) {return false;}
-                let found = false;
-                for (let i of stickerspam){
-                    if(i.id === id){
-                        if (i.msg >= 12) {
-                            found === true 
-                            dhil.reply(from, `*「 𝗔𝗡𝗧𝗜 𝗦𝗣𝗔𝗠 𝗦𝗧𝗜𝗖𝗞𝗘𝗥 」*\nKamu telah SPAM STICKER di grup, kamu akan di kick otomatis!`, id).then(() => {
-                                dhil.removeParticipant(groupId, id)
+        function isStickerMsg(id){
+            if (isOwner) {return false;}
+            let found = false;
+            for (let i of stickerspam){
+                if(i.id === id){
+                    if (i.msg >= 13) {
+                        found === true 
+                        dhil.reply(from, '*[ANTI STICKER SPAM]*\nKamu telah SPAM STICKER di grup, kamu akan di kick otomatis oleh bot', message.id).then(() => {
+                            dhil.removeParticipant(groupId, id)
+                        }).then(() => {
+                            const cus = id
+                            var found = false
+                            Object.keys(stickerspam).forEach((i) => {
+                                if(stickerspam[i].id == cus){
+                                    found = i
+                                }
                             })
-                            return true;
-                        }else if(i.msg >= 12){
-                            found === true
-                            dhil.reply(from, `*「 𝗔𝗡𝗧𝗜 𝗦𝗣𝗔𝗠 𝗦𝗧𝗜𝗖𝗞𝗘𝗥 」*\nKamu terdeteksi spam sticker!\nMohon tidak spam 5 sticker lagi atau akan di KICK!`, id)
-                            return true
-                        }else{
-                            found === true
-                            return false;
-                        }   
-                    }
+                            if (found !== false) {
+                                stickerspam[found].msg = 1;
+                                const result = '✅ DB Sticker Spam has been reset'
+                                console.log(stickerspam[found])
+                                fs.writeFileSync('./lib/database/user/stickerspam.json',JSON.stringify(stickerspam));
+                                dhil.sendText(from, result)
+                            } else {
+                                    dhil.reply(from, `${monospace(`Di database ngga ada nomer itu kak`)}`, id)
+                            }
+                        })
+                        return true;
+                    }else{
+                        found === true
+                        return false;
+                    }   
                 }
-                if (found === false){
-                    let obj = {id: `${id}`, msg:1};
-                    stickerspam.push(obj);
-                    fs.writeFileSync('./lib/database/stickerspam.json',JSON.stringify(stickerspam));
-                    return false;
-                }  
             }
+            if (found === false){
+                let obj = {id: `${id}`, msg:1};
+                stickerspam.push(obj);
+                fs.writeFileSync('./lib/database/user/stickerspam.json',JSON.stringify(stickerspam));
+                return false;
+            }  
+        }
         function addStickerCount(id){
-            //if (isPremi) {return;}
+            if (isOwner) {return;}
             var found = false
             Object.keys(stickerspam).forEach((i) => {
                 if(stickerspam[i].id == id){
@@ -422,46 +547,7 @@ module.exports = dhil = async (dhil, message) => {
             })
             if (found !== false) {
                 stickerspam[found].msg += 1;
-                fs.writeFileSync('./lib/database/stickerspam.json',JSON.stringify(stickerspam));
-            }
-        }
-
-        function isBadwordMsg(id){
-            //if (isPremi) {return false;}
-            let kasar = false;
-            for (let i of msgBadword){
-                if(i.id === id){
-                    let msg = i.msg
-                    if (msg >= 3) { // 3X BADWORD AKAN TERKENA KICK
-                        kasar === true 
-                        dhil.reply(from, `*「 𝗔𝗡𝗧𝗜 𝗕𝗔𝗗𝗪𝗢𝗥𝗗 」*\nKamu telah berkata kasar di grup ini, kamu akan di kick otomatis!`, id).then(() => {
-                            dhil.removeParticipant(groupId, id)
-                        })
-                        return true;
-                    }else{
-                        kasar === true
-                        return false;
-                    }   
-                }
-            }
-            if (kasar === false){
-                let obj = {id: `${id}`, msg:1};
-                msgBadword.push(obj);
-                fs.writeFileSync('./lib/database/msgBadword.json',JSON.stringify(msgBadword));
-                return false;
-            }  
-        }
-        function addBadCount(id){
-            //if (isPremi) {return;}
-            var kasar = false
-            Object.keys(msgBadword).forEach((i) => {
-                if(msgBadword[i].id == id){
-                    kasar = i
-                }
-            })
-            if (kasar !== false) {
-                msgBadword[kasar].msg += 1;
-                fs.writeFileSync('./lib/database/msgBadword.json',JSON.stringify(msgBadword));
+                fs.writeFileSync('./lib/database/user/stickerspam.json',JSON.stringify(stickerspam));
             }
         }
 
@@ -490,7 +576,7 @@ module.exports = dhil = async (dhil, message) => {
                     if (found === false){
                         let obj = {id: `${id}`, msg:1};
                         msgLimit.push(obj);
-                        fs.writeFileSync('./lib/database/msgLimit.json',JSON.stringify(msgLimit));
+                        fs.writeFileSync('./lib/database/group/msgLimit.json',JSON.stringify(msgLimit));
                         return false;
                     }  
                 }
@@ -504,7 +590,7 @@ module.exports = dhil = async (dhil, message) => {
                     })
                     if (found !== false) {
                         msgLimit[found].msg += 1;
-                        fs.writeFileSync('./lib/database/msgLimit.json',JSON.stringify(msgLimit));
+                        fs.writeFileSync('./lib/database/groupmsgLimit.json',JSON.stringify(msgLimit));
                     }
                 }
         function isLimit(id){
@@ -527,7 +613,7 @@ module.exports = dhil = async (dhil, message) => {
                     if (found === false){
                         let obj = {id: `${id}`, limit:1};
                         limit.push(obj);
-                        fs.writeFileSync('./lib/database/limit.json',JSON.stringify(limit));
+                        fs.writeFileSync('./lib/database/user/limit.json',JSON.stringify(limit));
                         return false;
                     }  
                 }
@@ -541,7 +627,7 @@ module.exports = dhil = async (dhil, message) => {
                     })
                     if (found !== false) {
                         limit[found].limit += 1;
-                        fs.writeFileSync('./lib/database/limit.json',JSON.stringify(limit));
+                        fs.writeFileSync('./lib/database/user/limit.json',JSON.stringify(limit));
                     }
                 }
         
@@ -573,72 +659,36 @@ module.exports = dhil = async (dhil, message) => {
             }
             return serialNumber;
         }
-
-        // AFK Function | Thansk to BocchiBot
-        const addAfkUser = (userId, time, reason) => {
-            const obj = { id: userId, time: time, reason: reason }
-            _afk.push(obj)
-            fs.writeFileSync('.lib/database/user/afk.json', JSON.stringify(_afk))
-        }
-
-        const checkAfkUser = (userId) => {
-            let status = false
-            Object.keys(_afk).forEach((i) => {
-                if (_afk[i].id === userId) {
-                    status = true
-                }
-            })
-            return status
-        }
-
-        const getAfkReason = (userId) => {
-            let position = false
-            Object.keys(_afk).forEach((i) => {
-                if (_afk[i].id === userId) {
-                    position = i
-                }
-            })
-            if (position !== false) {
-                return _afk[position].reason
-            }
-        }
-
-        const getAfkTime = (userId) => {
-            let position = false
-            Object.keys(_afk).forEach((i) => {
-                if (_afk[i].id === userId) {
-                    position = i
-                }
-            })
-            if (position !== false) {
-                return _afk[position].time
-            }
-        }
-
-        const getAfkId = (userId) => {
-            let position = false
-            Object.keys(_afk).forEach((i) => {
-                if (_afk[i].id === userId) {
-                    position = i
-                }
-            })
-            if (position !== false) {
-                return _afk[position].id
-            }
-        }
-
-        const getAfkPosition = (userId) => {
-            let position = false
-            Object.keys(_afk).forEach((i) => {
-                if (_afk[i].id === userId) {
-                    position = i
-                }
-            })
-            return position
-        }
-        const isAfkOn = checkAfkUser(sender.id)
+     
         
-                if(body === prefix+'mute' && isMuted(chatId) == true){
+        if (isGroupMsg && AntiStickerSpam && !isGroupAdmins && !isOwner){
+            if(stickermsg === true){
+                if(isStickerMsg(serial)) return
+                addStickerCount(serial)
+            }
+        }
+       
+        
+
+        if(!isCmd && isGroupMsg && isBadword && !isGroupAdmins && isKasar) { 
+            console.log(color('[BADWORD]', 'red'), color(moment(t * 1000).format('DD/MM/YY HH:mm:ss'), 'yellow'), color(`${argx}`), 'from', color(pushname), 'in', color(name || formattedTitle)) 
+            if(isBadwordMsg(serial)) return
+                addBadCount(serial)
+        }
+        if (isGroupMsg && isDetectorLink && !isGroupAdmins && !isOwner){
+            if (chats.match(/(https:\/\/chat.whatsapp.com)/gi)) {
+                const check = await dhil.inviteInfo(chats);
+                if (!check) {
+                    return
+                } else {
+                    dhil.reply(from, '*[GROUP LINK DETECTOR]*\nKamu mengirimkan link grup chat, maaf kamu di kick dari grup :(', id).then(() => {
+                        console.log(color('[ANTI-LINK]', 'red'), color(moment(t * 1000).format('DD/MM/YY HH:mm:ss'), 'yellow'), color(`${argx}`), 'from', color(pushname), 'in', color(name || formattedTitle)) 
+                        dhil.removeParticipant(groupId, sender.id)
+                    })
+                }
+            }
+        }        
+        if(body === prefix+'mute' && isMuted(chatId) == true){
                     if(isGroupMsg) {
                         if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
                         if(isMsgLimit(serial)){
@@ -647,7 +697,7 @@ module.exports = dhil = async (dhil, message) => {
                             addMsgLimit(serial)
                         }
                         muted.push(chatId)
-                        fs.writeFileSync('./lib/database/muted.json', JSON.stringify(muted, null, 2))
+                        fs.writeFileSync('./lib/database/group/muted.json', JSON.stringify(muted, null, 2))
                         dhil.reply(from, `Bot telah di mute pada chat ini! ${prefix}unmute untuk unmute!`, id)
                     }else{
                         if(isMsgLimit(serial)){
@@ -656,7 +706,7 @@ module.exports = dhil = async (dhil, message) => {
                             addMsgLimit(serial)
                         }
                         muted.push(chatId)
-                        fs.writeFileSync('./lib/database/muted.json', JSON.stringify(muted, null, 2))
+                        fs.writeFileSync('./lib/database/group/muted.json', JSON.stringify(muted, null, 2))
                         reply(from, 'Bot telah di mute pada chat ini! #unmute untuk unmute!', id)
                     }
                 }
@@ -670,7 +720,7 @@ module.exports = dhil = async (dhil, message) => {
                         }
                         let index = muted.indexOf(chatId);
                         muted.splice(index,1)
-                        fs.writeFileSync('./lib/database/muted.json', JSON.stringify(muted, null, 2))
+                        fs.writeFileSync('./lib/database/group/muted.json', JSON.stringify(muted, null, 2))
                         dhil.reply(from, 'Bot telah di unmute!', id)         
                     }else{
                         if(isMsgLimit(serial)){
@@ -680,7 +730,7 @@ module.exports = dhil = async (dhil, message) => {
                         }
                         let index = muted.indexOf(chatId);
                         muted.splice(index,1)
-                        fs.writeFileSync('./lib/database/muted.json', JSON.stringify(muted, null, 2))
+                        fs.writeFileSync('./lib/database/group/muted.json', JSON.stringify(muted, null, 2))
                         dhil.reply(from, 'Bot telah di unmute!', id)                   
                     }
                 }
@@ -723,16 +773,6 @@ module.exports = dhil = async (dhil, message) => {
             await dhil.reply (from, 'ajg', id)
             break
 			// Owner Setting
-			case prefix+'cekprefix':
-            dhil.reply(from, `PREFIX YANG SAAT INI DIGUNAKAN *「* ${prefix} *」*`)
-            break
-        case prefix+'setprefix':{
-            if(!isOwner) return dhil.reply(from, mess.Own, id)
-            if (args.length === 1) return dhil.reply(from, `Kirim perintah *${prefix}prefix [ NEW PREFIX ]*`, id)
-            prefix = args[1]
-            dhil.sendText(from, `Berhasil Mengganti Prefix Ke *「* ${prefix} *」*`)
-		}
-            break
             case prefix+'setbotname':
             if (!isOwner) return dhil.reply(from, mess.Own, id)
                 const setnem = body.slice(12)
@@ -762,7 +802,7 @@ module.exports = dhil = async (dhil, message) => {
             }
             break
 			
-			// DAFTAR
+			/****** DAFTAR *******/
 			case prefix +'daftar':{  //menambahkan nomor ke database | Daftar By BANG RISTIYANTO
                     if (argz.length === 1){
                         const arg = body.substring(body.indexOf(' ') + 1)
@@ -824,7 +864,7 @@ module.exports = dhil = async (dhil, message) => {
                             }
                         }
                     break
-                    // DAFTAR | END
+                    /******** END OF DAFTAR  ********/
 
 					case prefix + 'bc':{
 					if(isReg(obj)) return
@@ -849,30 +889,30 @@ module.exports = dhil = async (dhil, message) => {
 									dhil.reply('Broadcast Success!')
 					}}
                         break
-                        // PROTECT 
+                        // Group ENABLE | DISABLE
 					case prefix+'antilink':{
 					    if(isReg(obj)) return
 					    if(cekumur(cekage)) return
 					    if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
 					    if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
 					    if (!isBotGroupAdmins) return dhil.reply(from, mess.Ba, id)
-					    if (args[1] == 'enable') {
+					    if (args[1] == 'on') {
 						var cek = antilink.includes(chatId);
 						if(cek){
 							return dhil.reply(from, `*「 ANTI GROUP LINK 」*\nStatus : Sudah Aktif`, id) //if number already exists on database
 						} else {
 							antilink.push(chatId)
-							fs.writeFileSync('./lib/database/antilink.json', JSON.stringify(antilink))
+							fs.writeFileSync('./lib/database/group/antilink.json', JSON.stringify(antilink))
 							dhil.reply(from, `*「 ANTI GROUP LINK 」*\nStatus : Aktif`, id)
 						}
-					} else if (args[1] == 'disable') {
+					} else if (args[1] == 'off') {
 						var cek = antilink.includes(chatId);
 						if(!cek){
 							return dhil.reply(from, `*「 ANTI GROUP LINK 」*\nStatus : Sudah DiNonaktif`, id) //if number already exists on database
 						} else {
 							let nixx = antilink.indexOf(chatId)
 							antilink.splice(nixx, 1)
-							fs.writeFileSync('./lib/database/antilink.json', JSON.stringify(antilink))
+							fs.writeFileSync('./lib/database/group/antilink.json', JSON.stringify(antilink))
 							dhil.reply(from, `*「 ANTI GROUP LINK 」*\nStatus : Nonaktif`, id)
 						}
 					} else {
@@ -885,23 +925,23 @@ module.exports = dhil = async (dhil, message) => {
 					if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
 					if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
 					if (!isBotGroupAdmins) return dhil.reply(from, mess.Ba, id)
-					if (args[1] == 'enable') {
+					if (args[1] == 'on') {
 						var cek = antisticker.includes(chatId);
 						if(cek){
 							return dhil.reply(from, `*「 ANTI SPAM STICKER 」*\nStatus : Sudah Aktif`, id)
 						 } else {
 							antisticker.push(chatId)
-							fs.writeFileSync('./lib/database/antisticker.json', JSON.stringify(antisticker))
+							fs.writeFileSync('./lib/database/group/antisticker.json', JSON.stringify(antisticker))
 							dhil.reply(from, `*「 ANTI SPAM STICKER 」*\nStatus : Aktif`, id)
 						}
-					} else if (args[1] == 'disable') {
+					} else if (args[1] == 'off') {
 						var cek = antisticker.includes(chatId);
 						if(cek){
 							return dhil.reply(from, `*「 ANTI SPAM STICKER 」*\nStatus : Sudak DiNonaktif`, id) //if number already exists on database
 						} else {
 							let nixx = antisticker.indexOf(chatId)
 							antisticker.splice(nixx, 1)
-							fs.writeFileSync('./lib/database/antisticker.json', JSON.stringify(antisticker))
+							fs.writeFileSync('./lib/database/group/antisticker.json', JSON.stringify(antisticker))
 							dhil.reply(from, `*「 ANTI SPAM STICKER 」*\nStatus : Nonaktif`, id)
 							limitAdd(serial)
 						}
@@ -909,35 +949,55 @@ module.exports = dhil = async (dhil, message) => {
 						dhil.reply(from, `Pilih enable atau disable coek!`, id)
 				}}
 					break
-				case prefix+'antibadword':{
-					if(isReg(obj)) return
-					if(cekumur(cekage)) return
-					if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
-					if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
-					if (!isBotGroupAdmins) return dhil.reply(from, mess.Ba, id)
-					if (args[1] == 'enable') {
-						var cek = antibadword.includes(chatId);
-						if(cek){
-							return dhil.reply(from, `*「 ANTI BADWORD 」*\nSudah diaktifkan di grup ini`, id)
-						} else {
-							antibadword.push(chatId)
-							fs.writeFileSync('./lib/database/antibadword.json', JSON.stringify(antibadword))
-							dhil.reply(from, `*「 ANTI BADWORD 」*\nPerhatian Untuk Member Grup ${name} Tercinta\nHarap Jangan Toxic Di Sini Atau Elaina Akan Kick!`, id)
-						}
-					} else if (args[1] == 'disable') {
-						var cek = antibadword.includes(chatId);
-						if(!cek){
-							return dhil.reply(from, `*「 ANTI BADWORD 」*\nSudah dinonaktifkan di grup ini`, id)
-						} else {
-							let nixx = antibadword.indexOf(chatId)
-							antibadword.splice(nixx, 1)
-							fs.writeFileSync('./lib/database/antibadword.json', JSON.stringify(antibadword))
-							dhil.reply(from, `*「 ANTI BADWORD 」*\nPerhatian Untuk Member Grup ${name} Tercinta\nHarap Jangan Toxic Di Sini Atau Elaina Akan Kick!`, id)
-						}
-					} else {
-						dhil.reply(from, `Pilih enable atau disable coek!`, id)
-				}}
-					break
+                    case prefix + 'antibadword':
+                        if(isReg(obj)) return
+                        if(cekumur(cekage)) return
+                        if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
+                        //if (!isGroupAdmins) return dhil.reply(from, 'Gagal, perintah ini hanya dapat digunakan oleh admin grup!', id)
+                        if (!isBotGroupAdmins) return dhil.reply(from, 'Wahai admin, jadikan saya sebagai admin grup dahulu :)', id)
+                        if (args[1] == 'on') {
+                            var cek = badword.includes(chatId);
+                            if(cek){
+                                return dhil.reply(from, '*Anti Badword Detector* sudah aktif di grup ini', id) //if number already exists on database
+                            } else {
+                                badword.push(chatId)
+                                fs.writeFileSync('./lib/database/group/badword.json', JSON.stringify(badword))
+                                dhil.reply(from, '*[Anti BadWord]* telah di aktifkan\n\nMohon para member grup sekalian untuk tidak berkata kasar sebanyak 5x atau akan di kick secara otomatis!', id)
+
+                            }
+                        } else if (args[1] == 'off') {
+                            var cek = badword.includes(chatId);
+                            if(!cek){
+                                return dhil.reply(from, '*Anti Badword Detector* sudah non-aktif di grup ini', id) //if number already exists on database
+                            } else {
+                                let nixx = badword.indexOf(chatId)
+                                badword.splice(nixx, 1)
+                                fs.writeFileSync('./lib/database/group/badword.json', JSON.stringify(badword))
+                                dhil.reply(from, '*[Anti BadWord]* telah di nonaktifkan', id)
+                                limitAdd(serial)
+                            }
+                        } else {
+                            dhil.reply(from, `pilih on / off\n\n*[Anti BadWord]*\nSetiap member grup yang mengirim pesan mengandung badword lebih dari 10x akan di kick oleh bot!`, id)
+                        }
+                        break  
+                case prefix + 'leveling':
+                     if(isReg(obj)) return
+                     if(cekumur(cekage)) return
+                     if (!isGroupMsg) return await dhil.reply(from, mess.Gr, id)
+                     if (!isGroupAdmins) return await dhil.reply(from, mess.Ga, id)
+                     if (ar[0] === 'on') {
+                    if (isLevelingOn) return await dhil.reply(from, 'Fitur leveling telah diaktifkan sebelumnya.', id)
+                    _leveling.push(groupId)
+                    fs.writeFileSync('./lib/database/group/leveling.json', JSON.stringify(_leveling))
+                    await dhil.reply(from, 'Fitur leveling berhasil *diaktifkan*!', id)
+                } else if (ar[0] === 'off') {
+                    _leveling.splice(groupId, 1)
+                    fs.writeFileSync('./lib/database/group/leveling.json', JSON.stringify(_leveling))
+                    await dhil.reply(from, 'Fitur leveling berhasil *dinonaktifkan*!', id)
+                } else {
+                    await dhil.reply(from, mess.Fo, id)
+                }
+            break
 			// Protect || Database
 				 case prefix+'resetsticker':{
 					if(isReg(obj)) return
@@ -957,39 +1017,78 @@ module.exports = dhil = async (dhil, message) => {
 							stickerspam[found].msg = 1;
 							const result = 'DB Sticker Spam has been reset'
 							console.log(stickerspam[found])
-							fs.writeFileSync('./lib/database/stickerspam.json',JSON.stringify(stickerspam));
+							fs.writeFileSync('./lib/database/group/stickerspam.json',JSON.stringify(stickerspam));
 							dhil.reply(from, result, from)
 							limitAdd(serial)
 						} else {
 								dhil.reply(from, `Maaf, Nomor itu tidak terdaftar di database!`, id)
 				}}
-					break
-                 case prefix+'resetbadword':{
+                    break
+                 case prefix +'addbadword':{
+                    //if (!isPremium) return dhil.reply(from, 'Untuk menghindari penyalahgunaan, fitur ini hanya tersedia untuk user premium', id)
                     if(isReg(obj)) return
                     if(cekumur(cekage)) return
-                    if(isLimit(serial)) return
-                    if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)  
-                    if (!args.length === 1) return dhil.reply(from, 'Masukkan nomornya, *GUNAKAN AWALAN 62*\ncontoh: #resetbadword 6285112554122 / #resetbadword @member') 
-                    const nomer = args[1]
-                    let text = nomer.replace(/[-\s+@c.us]/g,'')
-                    const cus = text + '@c.us'
-                        var found = false
-                        Object.keys(msgBadword).forEach((i) => {
-                            if(msgBadword[i].id == cus){
-                                found = i
+                    if (!args.length >= 1) return dhil.reply(from, 'Masukkan kata kasar yang akan di blacklist ', id) 
+                    const word = body.slice(12)
+                    var cek = db_badword.includes(word);
+                    if(cek){
+                    return dhil.reply(from, 'Badword sudah ada di database', id) //if number already exists on database
+                     } else { 
+                    db_badword.push(word)
+                         fs.writeFileSync('./lib/database/katakasar.json', JSON.stringify(db_badword))
+                         dhil.reply(from, `Sukses memblacklist kata kasar\nTotal data badword sekarang : *${db_badword.length - 1}*`, id)
                             }
-                        })
-                        if (found !== false) {
-                            msgBadword[found].msg = 1;
-                            const result = 'DB Badword Spam has been reset'
-                            console.log(msgBadword[found])
-                            fs.writeFileSync('./lib/database/msgBadword.json',JSON.stringify(msgBadword));
-                            dhil.reply(from, result, from)
-                            limitAdd(serial)
-                        } else {
-                                dhil.reply(from, `${monospace(`Di database ngga ada nomer itu kak`)}`, id)
-		                }}
-                         break
+                        }
+                    break      
+                case prefix +'listbadword': {
+                    const bad = fs.readFileSync('./lib/database/katakasar.json')
+                    const liste = JSON.parse(bad)
+                    let list = '☠️ *Daftar Badword* ☠️\nJika filter anti badword di aktifkan, setiap member yang mengirimkan pesan mengandung badword lebih dari 10x maka akan di kick oleh bot\n'
+                        list += `*Total (${liste.length})*\n`
+                        let nomre = 1
+                          for (let i = 0; i < liste.length; i++){
+                             list += `\n*${nomre}.* ${liste[i]}`
+                              nomre++
+                        }
+                        dhil.sendText(from, list) 
+                          }
+                        break          
+                
+                case prefix+'delbadword':
+                        if (!isOwner) return dhil.reply(from, mess.Own, id)
+                            const delbd = dbbadword.indexOf(body.slice(12))
+                            dbbadword.splice(delbd, 1)
+                            fs.writeFileSync('./lib/database/katakasar.json', JSON.stringify(dbbadword))
+                            dhil.reply(from, `Success Menghapus Badword!`, id)
+                        break
+                 case prefix +'resetbadword':{
+                     if(isLimit(serial)) return
+                     if(isReg(obj)) return
+                     if(cekumur(cekage)) return
+                     //if (!isGroupAdmins) return dhil.reply(from, 'Command ini hanya dapat digunakan oleh admin grup')  
+                     if (!args.length >= 1) return dhil.reply(from, 'Masukkan nomornya, *GUNAKAN AWALAN 62*\ncontoh: #resetbadword 6285112554122 / #resetbadword @member', id) 
+                         const nomer = args[1]
+                        let text = nomer.replace(/[-\s+@c.us]/g,'')
+                        const cus = text + '@c.us'
+                            var found = false
+                             Object.keys(msgBadword).forEach((i) => {
+                        if(msgBadword[i].id == cus){
+                          found = i
+                                }
+                            })
+                            if (found !== false) {
+                               msgBadword[found].msg = 1;
+                             const result = 'DB Badword Spam has been reset'
+                                    console.log(msgBadword[found])
+                                 fs.writeFileSync('./lib/database/user/msgBadword.json',JSON.stringify(msgBadword));
+                                dhil.reply(from, result, id)
+                                limitAdd(serial)
+                             } else {
+                             dhil.reply(from, `${monospace(`Di database ngga ada nomer itu dik`)}`, id)
+                             }
+                         }
+                        break
+                 
                          // Group Settings
                     case prefix+'left':
                         if(isReg(obj)) return
@@ -997,13 +1096,13 @@ module.exports = dhil = async (dhil, message) => {
                         if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
                         if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
                         if (args.length === 1) return dhil.reply(from, 'Pilih enable atau disable!', id)
-                        if (args[1].toLowerCase() === 'enable') {
+                        if (args[1].toLowerCase() === 'on') {
                             left.push(chat.id)
-                            fs.writeFileSync('./lib/database/left.json', JSON.stringify(left))
+                            fs.writeFileSync('./lib/database/group/left.json', JSON.stringify(left))
                             dhil.reply(from, 'Fitur left berhasil di aktifkan di group ini!', id)
-                        } else if (args[1].toLowerCase() === 'disable') {
+                        } else if (args[1].toLowerCase() === 'off') {
                             left.splice(chat.id, 1)
-                            fs.writeFileSync('./lib/database/left.json', JSON.stringify(left))
+                            fs.writeFileSync('./lib/database/group/left.json', JSON.stringify(left))
                             dhil.reply(from, 'Fitur left berhasil di nonaktifkan di group ini!', id)
                         } else {
                             dhil.reply(from, 'Pilih enable atau disable dulu jir!', id)
@@ -1015,13 +1114,13 @@ module.exports = dhil = async (dhil, message) => {
                         if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
                         if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
                         if (args.length === 1) return dhil.reply(from, 'Pilih enable atau disable!', id)
-                        if (args[1].toLowerCase() === 'enable') {
+                        if (args[1].toLowerCase() === 'on') {
                             welkom.push(chat.id)
-                            fs.writeFileSync('./lib/database/welcome.json', JSON.stringify(welkom))
+                            fs.writeFileSync('./lib/database/group/welcome.json', JSON.stringify(welkom))
                             dhil.reply(from, 'Fitur welcome berhasil di aktifkan di group ini!', id)
-                        } else if (args[1].toLowerCase() === 'disable') {
+                        } else if (args[1].toLowerCase() === 'off') {
                             welkom.splice(chat.id, 1)
-                            fs.writeFileSync('./lib/database/welcome.json', JSON.stringify(welkom))
+                            fs.writeFileSync('./lib/database/group/welcome.json', JSON.stringify(welkom))
                             dhil.reply(from, 'Fitur welcome berhasil di nonaktifkan di group ini!', id)
                         } else {
                             dhil.reply(from, 'Pilih enable atau disable dulu coek!', id)
@@ -1033,22 +1132,22 @@ module.exports = dhil = async (dhil, message) => {
                             if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
                             if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
                             if (args.length === 1) return dhil.reply(from, 'Pilih enable atau disable!', id)
-                            if (args[1].toLowerCase() === 'enable') {
+                            if (args[1].toLowerCase() === 'on') {
                                 var cek = nsfw_.includes(chatId);
                                 if(cek){
                                     return dhil.reply(from, `NSFW Sudah diaktifkan di grup ini`, id)
                                 } else {
                                 nsfw_.push(chat.id)
-                                fs.writeFileSync('./lib/database/nsfw.json', JSON.stringify(nsfw_))
+                                fs.writeFileSync('./lib/database/group/nsfw.json', JSON.stringify(nsfw_))
                                 dhil.reply(from, 'NSFW berhasil di aktifkan di group ini! kirim perintah *#nsfwMenu* untuk mengetahui menu', id)
                                 }
-                            } else if (args[1].toLowerCase() === 'disable') {
+                            } else if (args[1].toLowerCase() === 'off') {
                                 var cek = nsfw_.includes(chatId);
                                 if(cek){
                                     return dhil.reply(from, `NSFW Sudah dinonaktifkan di grup ini`, id)
                                 } else {
                                 nsfw_.splice(chat.id, 1)
-                                fs.writeFileSync('./lib/database/nsfw.json', JSON.stringify(nsfw_))
+                                fs.writeFileSync('./lib/database/group/nsfw.json', JSON.stringify(nsfw_))
                                 dhil.reply(from, 'NSFW berhasil di nonaktifkan di group ini!', id)
                                 }
                             } else {
@@ -1061,22 +1160,22 @@ module.exports = dhil = async (dhil, message) => {
                             if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
                             if (!isPremi) return dhil.reply(from, mess.Pr, id)
                             if (args.length === 1) return dhil.reply(from, 'Pilih enable atau disable!', id)
-                            if (args[1].toLowerCase() === 'enable') {
+                            if (args[1].toLowerCase() === 'on') {
                                 var cek = simi_.includes(chatId);
                                 if(cek){
                                     return dhil.reply(from, `Simsimi Sudah diaktifkan di grup ini`, id)
                                 } else {
                                 simi_.push(chat.id)
-                                fs.writeFileSync('./lib/database/Simsimi.json', JSON.stringify(simi_))
+                                fs.writeFileSync('./lib/database/group/Simsimi.json', JSON.stringify(simi_))
                                 dhil.reply(from, 'Simsimi berhasil di aktifkan di group ini! Kirim perintah *# [teks]*\nContoh : *! halo*', id)
                                 }
-                            } else if (args[1].toLowerCase() === 'disable') {
+                            } else if (args[1].toLowerCase() === 'off') {
                                 var cek = simi_.includes(chatId);
                                 if(cek){
                                     return dhil.reply(from, `Simsimi Sudah diaktifkan di grup ini`, id)
                                 } else {
                                 simi_.splice(chat.id, 1)
-                                fs.writeFileSync('./lib/database/Simsimi.json', JSON.stringify(simi_))
+                                fs.writeFileSync('./lib/database/group/Simsimi.json', JSON.stringify(simi_))
                                 dhil.reply(from, 'Simsimi berhasil di nonaktifkan di group ini!', id)
                                 }
                             } else {
@@ -1098,6 +1197,50 @@ module.exports = dhil = async (dhil, message) => {
                                 dhil.sendTextWithMentions(from, `Group telah ditutup oleh admin @${sender.id.replace('@c.us','')}\nSekarang *hanya admin* yang dapat mengirim pesan`)
                             } else {
                                 dhil.reply(from, 'Pilih open atau close dulu!', id)
+                            }
+                            break
+                        case prefix + 'resetlinkgroup':
+                            if(isReg(obj)) return
+                            if(cekumur(cekage)) return
+                            if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
+                            if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
+                            if (!isBotGroupAdmins) return dhil.reply(from, mess.Ba, id)
+                            if (isGroupMsg) {
+                                await dhil.revokeGroupInviteLink(groupId);
+                                dhil.sendTextWithMentions(from, `Link group telah direset oleh admin @${sender.id.replace('@c.us', '')}`)
+                            }
+                            break
+                        case prefix + 'setgcname':
+                            if(isReg(obj)) return
+                            if(cekumur(cekage)) return
+                            if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
+                            if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
+                            if (!isBotGroupAdmins) return dhil.reply(from, mess.Ba, id)
+                            const namagrup = body.slice(11)
+                            let sebelum = chat.groupMetadata.formattedName
+                            let halaman = global.page ? global.page : await dhil.getPage()
+                            await halaman.evaluate((chatId, subject) =>
+                            Store.WapQuery.changeSubject(chatId, subject),groupId, `${namagrup}`)
+                            dhil.sendTextWithMentions(from, `Nama group telah diubah oleh admin @${sender.id.replace('@c.us','')}\n\n• Before: ${sebelum}\n• After: ${namagrup}`)
+                            break
+                        case prefix + 'setgcpp':
+                            if(isReg(obj)) return
+                            if(cekumur(cekage)) return
+                            if (!isGroupMsg) return dhil.reply(from, mess.Gr, id)
+                            if (!isGroupAdmins) return dhil.reply(from, mess.Ga, id)
+                            if (!isBotGroupAdmins) return dhil.reply(from, mess.Ba, id)
+                            if (isMedia) {
+                                const mediaData = await decryptMedia(message)
+                                const imageBase64 = `data:${mimetype};base64,${mediaData.toString('base64')}`
+                                await dhil.setGroupIcon(from, imageBase64)
+                                dhil.sendTextWithMentions(from, `Profile group telah diubah oleh admin @${sender.id.replace('@c.us','')}`)
+                            } else if (quotedMsg && quotedMsg.type == 'image') {
+                                const mediaData = await decryptMedia(quotedMsg)
+                                const imageBase64 = `data:${quotedMsg.mimetype};base64,${mediaData.toString('base64')}`
+                                await dhil.setGroupIcon(from, imageBase64)
+                                dhil.sendTextWithMentions(from, `Profile group telah diubah oleh admin @${sender.id.replace('@c.us','')}`)
+                            } else {
+                                dhil.reply(from, `Wrong Format!\n⚠️ Harap Kirim Gambar Dengan ${prefix}setgroupicon`, id)
                             }
                             break
 						
@@ -1174,60 +1317,48 @@ module.exports = dhil = async (dhil, message) => {
                                     await dhil.reply(from, 'Maaf, format penggunaan salah!', id)
                                 }
                             break
-                            case prefix+'stickerlightning':
-                            case prefix+'slightning':
-                                if(isReg(obj)) return
-                            if(cekumur(cekage)) return
-                            if(isLimit(serial)) return
-                                if (isMedia && isImage || isQuotedImage) {
-                                    await dhil.reply(from, mess.wait, id)
-                                    const encryptMedia = isQuotedImage ? quotedMsg : message
-                                    const mediaData = await decryptMedia(encryptMedia, uaOverride)
-                                    const imageLink = await uploadImages(mediaData, `lightning.${sender.id}`)
-                                    stickerLight(imageLink)
-                                        .then(async ({ result }) => {
-                                            await dhil.sendStickerfromUrl(from, result.imgUrl)
-                                                .then(async () => {
-                                                    console.log(`Sticker processed for ${processTime(t, moment())} seconds`)
-                                                    await dhil.sendText(from, 'Nih..')
-                                                    limitAdd(serial)
-                                                })
-                                        })
-                                        .catch(async (err) => {
-                                            console.error(err)
-                                            await dhil.reply(from, `Error!\n${err}`, id)
-                                        })
-                                } else {
-                                    await dhil.reply(from, mess.error.Fo, id)
-                                }
-                            break
-                            case prefix+'stickerfire':
-                            case prefix+'sfire':
+                            case prefix + 'stickerlightning':
+                            case prefix + 'slightning':
                                 if(isReg(obj)) return
                                 if(cekumur(cekage)) return
-                                if(isLimit(serial)) return 
-                                if (isMedia && isImage || isQuotedImage) {
-                                    await dhil.reply(from, mess.wait, id)
-                                    const encryptMedia = isQuotedImage ? quotedMsg : message
-                                    const mediaData = await decryptMedia(encryptMedia, uaOverride)
-                                    const imageLink = await uploadImages(mediaData, `fire.${sender.id}`)
-                                    stickerFire(imageLink)
-                                        .then(async ({ result }) => {
-                                            await dhil.sendStickerfromUrl(from, result.imgUrl)
-                                                .then(async () => {
-                                                    console.log(`Sticker processed for ${processTime(t, moment())} seconds`)
-                                                    await dhil.sendText(from, 'Nih.')
-                                                     limitAdd(serial)
-                                                })
-                                        })
-                                        .catch(async (err) => {
-                                            console.error(err)
-                                            await dhil.reply(from, `Error!\n${err}`, id)
-                                        })
+                                dhil.reply(from, `[WAIT] Sedang di proses⏳ silahkan tunggu ± 1 min!`, id)
+                                if (isMedia && type === 'image') {
+                                    const mediaData = await decryptMedia(message, uaOverride)
+                                    const getUrle = await uploadImages(mediaData, false)
+                                    const imgnye = await stickerlight(getUrle)
+                                    const Slight = imgnye.result.imgUrl
+                                    await dhil.sendStickerfromUrl(from, Slight)
+                                } else if (quotedMsg && quotedMsg.type == 'image') {
+                                    const mediaData = await decryptMedia(quotedMsg, uaOverride)
+                                    const getUrle = await uploadImages(mediaData, false)
+                                    const imgnye = await stickerlight(getUrle)
+                                    const Slight = imgnye.result.imgUrl
+                                    await dhil.sendStickerfromUrl(from, Slight)
                                 } else {
-                                    await dhil.reply(from, mess.error.Fo, err)
+                                    await dhil.reply(from, `Wrong Format!\n⚠️ Harap Kirim Gambar Dengan ${prefix}stickerlightning`, id)
                                 }
-                            break
+                                break
+                            case prefix + 'stickerfire':
+                            case prefix + 'sfire':
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                dhil.reply(from, `[WAIT] Sedang di proses⏳ silahkan tunggu ± 1 min!`, id)
+                                if (isMedia && type === 'image') {
+                                    const mediaData = await decryptMedia(message, uaOverride)
+                                    const getUrli = await uploadImages(mediaData, false)
+                                    const imgnya = await stickerburn(getUrli)
+                                    const Sfire = imgnya.result.imgUrl
+                                    await dhil.sendStickerfromUrl(from, Sfire)
+                                } else if (quotedMsg && quotedMsg.type == 'image') {
+                                    const mediaData = await decryptMedia(quotedMsg, uaOverride)
+                                    const getUrli = await uploadImages(mediaData, false)
+                                    const imgnya = await stickerburn(getUrli)
+                                    const Sfire = imgnya.result.imgUrl
+                                    await dhil.sendStickerfromUrl(from, Sfire)
+                                } else {
+                                    await dhil.reply(from, `Wrong Format!\n⚠️ Harap Kirim Gambar Dengan ${prefix}stickerfire`, id)
+                                }
+                                break
                             case prefix+'ttg':
                                 if(isReg(obj)) return
                                 if(cekumur(cekage)) return
@@ -1266,7 +1397,7 @@ module.exports = dhil = async (dhil, message) => {
                             break
                             case prefix+'emojisticker':
                             case prefix+'emojistiker':
-                                case prefix+'emo':
+                            case prefix+'emo':
                                 if(isReg(obj)) return
                                 if(cekumur(cekage)) return
                                 if(isLimit(serial)) return
@@ -1285,7 +1416,207 @@ module.exports = dhil = async (dhil, message) => {
                                         await dhil.reply(from, 'Emoji itu tidak di dukung!', id)
                                     })
                             break
-                  
+                            // Owner Tools
+                            case prefix + 'premium':
+                                if (!isOwner) return dhil.reply(from, mess.Own, id)
+                                var cek = premiNumber.includes(ar[1]);
+                                if(cek){
+                                    return dhil.reply(from, `Nomor itu Sudah Ada Di Database`, id)
+                                }
+                               else if (ar[0] === 'add') {
+                                    if (mentionedJidList.length !== 0) {
+                                        for (let benet of mentionedJidList) {
+                                            if (benet === botNumber) return await dhil.reply(from, ind.wrongFormat(), id)
+                                            const since = moment(t * 1000).format('DD/MM/YYYY')
+                                            const exp = moment(t * 1000).add(`${args[3].replace(/d/g, '')}`, 'days').calendar()
+                                            premium.addPremiumUser(benet, args[3], since, exp, premiNumber)
+                                            await dhil.reply(from, `*「 PREMIUM ADDED 」*\n\n➸ *ID*: ${benet}\n➸ *From*: ${since}\n➸ *Exipired*: ${exp}\n➸ *Status Expired*: ${ms(toMs(args[3])).days} day(s) ${ms(toMs(args[3])).hours} hour(s) ${ms(toMs(args[3])).minutes} minute(s)`, id)
+                                        }
+                                    } else {
+                                        const since = moment(t * 1000).format('DD/MM/YYYY')
+                                            const exp = moment(t * 1000).add(`${args[3].replace(/d/g, '')}`, 'days').calendar()
+                                        premium.addPremiumUser(args[2] + '@c.us', args[3], since, exp, premiNumber)
+                                        await dhil.reply(from, `*「 PREMIUM ADDED 」*\n\n➸ *ID*: ${args[2]}@c.us\n➸ *From*: ${since}\n➸ *Exipired*: ${exp}\n➸ *Status Expired*: ${ms(toMs(args[3])).days} day(s) ${ms(toMs(args[3])).hours} hour(s) ${ms(toMs(args[3])).minutes} minute(s)`, id)
+                                    }
+                                } else if (ar[0] === 'del') {
+                                    if (mentionedJidList.length !== 0) {
+                                        if (mentionedJidList[0] === botNumber) return await dhil.reply(from, ind.wrongFormat(), id)
+                                        premiNumber.splice(premium.getPremiumPosition(mentionedJidList[0], premiNumber), 1)
+                                        fs.writeFileSync('./lib/database/user/premium.json', JSON.stringify(premiNumber))
+                                        await dhil.reply(from, 'Done Bos!', id)
+                                    } else {
+                                        premiNumber.splice(premium.getPremiumPosition(args[1] + '@c.us', premiNumber), 1)
+                                        fs.writeFileSync('./lib/database/user/premium.json', JSON.stringify(premiNumber))
+                                        await dhil.reply(from, 'Done Bos!', id)
+                                    }
+                                } else {
+                                    await dhil.reply(from, mess.Fo, id)
+                                }
+                            break
+
+                            case prefix + 'premiumcheck':
+                            case prefix + 'cekpremium':
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                if (!isPremi) return await dhil.reply(from, 'Maaf, anda tidak terdaftar sebagai user Premium!', id)
+                                for(let p of premiNumber){
+                                    if(p.id === sender.id){
+                                        let start = p.start
+                                        let end = p.end
+                                    const cekExp = ms(premium.getPremiumExpired(sender.id, premiNumber) - Date.now())
+                                    await dhil.reply(from, `*「 PREMIUM EXPIRE 」*\n\n➸ *ID*: ${sender.id.replace(/[@c.us]/g, '')}\n➸ *From*: ${start}\n➸ *Exipired*: ${end}\n➸ *Status Expired*: ${cekExp.days} day(s) ${cekExp.hours} hour(s) ${cekExp.minutes} minute(s)`, id)
+                                    }}
+                                    break
+                            case prefix + 'premiumlist':
+                            case prefix + 'listpremium':
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                 let listPremi = '「 *PREMIUM USER LIST* 」\n\n'
+                                 let nomorList = 0
+                                 const arrayPremi = []
+                                 for (let i = 0; i < premium.getAllPremiumUser(premiNumber).length; i++) {
+                                        arrayPremi.push(await dhil.getContact(premium.getAllPremiumUser(premiNumber)[i]))
+                                        nomorList++
+                                        listPremi += `${nomorList}. ${premium.getAllPremiumUser(premiNumber)[i]}\n➸ *Name*: ${arrayPremi[i].pushname}\n\n`
+                                    }
+                                    await dhil.reply(from, listPremi, id)
+                                break
+
+                            // MISC
+                            case prefix + 'afk':{
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                if (!isGroupMsg) return await dhil.reply(from, mess.Gr, id)
+                                    if (isAfkOn) return await dhil.reply(from, 'Anda sudah AFK!', id)
+                                    const q = args[1]
+                                    const nom = sender.id
+                                    const reason = q ? q : 'Nothing.'
+                                    afk.addAfkUser(sender.id, time, reason, _afk)
+                                    await dhil.sendTextWithMentions(from, `🔺 @${nom.replace(/[@c.us]/g, '')} Sekarang AFK\nAlasan: ${reason}\nWaktu: ${time}`, id)
+                            }
+                                break   
+                             case prefix +'reminder':{ // by Slavyan
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                if (!isPremi) return dhil.reply(from, mess.Pr, id)
+                                if (args.length === 1) return dhil.reply(from, `Format salah!`, id)
+                                if (argz.length === 1){
+                                    const arg = body.substring(body.indexOf(' ') + 1)
+                                const timeRemind = arg.split('|')[0]
+                                const messRemind = arg.split('|')[1]
+                                const parsedTime = ms(toMs(timeRemind))
+                                reminder.addReminder(sender.id, messRemind, timeRemind, _reminder)
+                                await dhil.sendTextWithMentions(from, `*「 REMINDER 」*\n\nReminder diaktifkan! :3\n\n➸ *Pesan*: ${messRemind}\n➸ *Durasi*: ${parsedTime.hours} jam ${parsedTime.minutes} menit ${parsedTime.seconds} detik\n➸ *Untuk*: @${sender.id.replace('@c.us', '')}`, id)
+                                const intervRemind = setInterval(async () => {
+                                    if (Date.now() >= reminder.getReminderTime(sender.id, _reminder)) {
+                                        await dhil.sendTextWithMentions(from, `⏰ *「 REMINDER 」* ⏰\n\nDing Dong~ @${sender.id.replace('@c.us', '')}\n\n➸ *Pesan*: ${reminder.getReminderMsg(sender.id, _reminder)}`)
+                                        _reminder.splice(reminder.getReminderPosition(sender.id, _reminder), 1)
+                                        fs.writeFileSync('./lib/database/user/reminder.json', JSON.stringify(_reminder))
+                                        clearInterval(intervRemind)
+                                    }
+                                }, 1000)
+                            }}
+                            break
+                            case prefix + 'limit':
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                //if (isOwner) return dhil.reply(from, `Sisa limit request anda tersisa : *99999983*\n\n_Note : Limit akan direset setiap jam 21:00!_`, id)
+                                if (isPremi) return dhil.reply(from, 'Anda adalah member *PREMIUM*, sisa limit request anda adalah *UNLIMITED/TAK TERBATAS*', id)
+                                    var found = false
+                                    const limidat = JSON.parse(fs.readFileSync('./lib/database/user/limit.json'))
+                                    for(let lmt of limidat){
+                                        if(lmt.id === serial){
+                                            let limitCounts = limitCount-lmt.limit
+                                            if(limitCounts <= 0) return dhil.reply(from, `Limit request anda sudah habis\n\n_Note : Limit akan direset setiap jam 21:00!_`, id)
+                                            dhil.reply(from, `Sisa limit request anda tersisa : *${limitCounts}*\n\n_Note : Limit akan direset setiap jam 21:00!_`, id)
+                                            found = true
+                                        }
+                                    }
+                                    //console.log(limit)
+                                //console.log(limidat)
+                                    if (found === false){
+                                        let obj = {id: `${serial}`, limit:1};
+                                        limit.push(obj);
+                                        fs.writeFileSync('./lib/database/user/limit.json',JSON.stringify(limit, 1));
+                                        dhil.reply(from, `Sisa limit request anda tersisa : *${limitCount}*\n\n_Note : Limit akan direset setiap jam 21:00!_`, id)
+                                    }
+                                    break 
+
+                            // Level [BETA] by Slavyan
+                            case prefix + 'level':
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                if (!isLevelingOn) return await dhil.reply(from, 'Sistem Level belum diaktifkan di grup ini!', id)
+                                if (!isGroupMsg) return await dhil.reply(from, mess.Gr, id)
+                                const userLevel = level.getLevelingLevel(sender.id, _level)
+                                const userXp = level.getLevelingXp(sender.id, _level)
+                                if (userLevel === undefined && userXp === undefined) return await dhil.reply(from, 'Kamu belum memiliki Level!', id)
+                                const ppLink = await dhil.getProfilePicFromServer(sender.id)
+                                if (ppLink === undefined) {
+                                 var pepe = errorImg
+                                  } else {
+                                 var pepe = ppLink
+                                  }
+                                 const bege = card.getBg(sender.id, _bg)
+                                 const requiredXp = 200 * (Math.pow(2, userLevel) - 1)
+                                 const randomHexs = `#${(Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0')}`
+                                 const randomHex = `#${(Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0')}`
+                                 const rank = new canvas.Rank()
+                                       .setAvatar(pepe)
+                                       .setLevel(userLevel)
+                                       .setRank(1, `${role}`, false) // Set value to true if you want to display user's roles
+                                       .setCurrentXP(userXp)
+                                       .setRequiredXP(requiredXp)
+                                       .setProgressBar([randomHexs, randomHex], 'GRADIENT')
+                                       .setBackground('IMAGE', bege)
+                                       .setUsername(pushname)
+                                       .setDiscriminator(sender.id.substring(6, 10))
+                                        rank.build()
+                                            .then(async (buffer) => {
+                                                canvas.write(buffer, `${pushname}_card.png`)
+                                                await dhil.sendFile(from, `${pushname}_card.png`, `${pushname}_card.png`, '', id)
+                                                fs.unlinkSync(`${pushname}_card.png`)
+                                            })
+                                            .catch(async (err) => {
+                                                console.error(err)
+                                                await dhil.reply(from, 'Error!', id)
+                                            })
+                                    break
+                            case prefix + 'leaderboard':
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                 if (!isLevelingOn) return await dhil.reply(from, 'Sistem Level belum diaktifkan di grup ini!', id)
+                                 if (!isGroupMsg) return await dhil.reply(from. mess.Gr, id)
+                                  _level.sort((a, b) => (a.xp < b.xp) ? 1 : -1)
+                                   let leaderboard = '-----[ *LEADERBOARD* ]----\n\n'
+                                   let nom = 0
+                                     try {
+                                       for (let i = 0; i < 10; i++) {
+                                        nom++
+                                         leaderboard += `${nom}. wa.me/${_level[i].id.replace('@c.us', '')}\n➸ *XP*: ${_level[i].xp} *Level*: ${_level[i].level}\n\n`
+                                        }
+                                        await dhil.reply(from, leaderboard, id)
+                                      } catch (err) {
+                                           console.error(err)
+                                            await dhil.reply(from, 'Perlu setidaknya *10* user yang memiliki level di database!', id)
+                                        }
+                                    break
+                            case prefix + 'setbackground':
+                            case prefix +'setbg':
+                                if(isReg(obj)) return
+                                if(cekumur(cekage)) return
+                                 if (!isLevelingOn) return await dhil.reply(from, 'Sistem Level belum diaktifkan di grup ini!', id)
+                                 if (!isGroupMsg) return await dhil.reply(from, mess.Gr, id)
+                                 let linke = args[1].match(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)/gi)
+                                 if (!linke)  return await dhil.reply(from, mess.Fo, id)
+                                 const levels = level.getLevelingLevel(sender.id, _level)
+                                  const xps = level.getLevelingXp(sender.id, _level)
+                                   if (levels === undefined && xps === undefined) return await dhil.reply(from, 'Kamu belum memiliki Level!', id)
+                                    card.replaceBg(sender.id, args[1], _bg)
+                                  await dhil.reply(from, 'Success set new background!', id)
+                                   break                        
+                                                    
+                           
 						
 
 
@@ -1293,7 +1624,7 @@ module.exports = dhil = async (dhil, message) => {
 
 
 default:
-            //if (!isGroupMsg) return dhil.reply(from, 'Jika Ingin Menggunakan Bot Harap Masuk Ke Dalam Grup Elaina, Link Ada Di Bio atau Bisa Mengetik #elainagroup!\nJika Ingin Sewa Bot atau Bikin Bot Harap Ketik *#iklan*', id)
+            //if (!isGroupMsg) return dhil.reply(from, 'Jika Ingin Menggunakan Bot Harap Masuk Ke Dalam Grup BOT, Link Ada Di Bio atau Bisa Mengetik !groupbot!', id)
             if (command.startsWith(prefix)) {
                 dhil.reply(from, `Maaf ${pushname}, Command *${args[0]}* Tidak Terdaftar Di Dalam *${prefix}menu*!`, id)
             }
